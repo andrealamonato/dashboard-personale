@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Familiare</title>
+    <!-- Use Tailwind CSS for modern and responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        .widget-container {
+            background-color: #2d3748;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .clock-display {
+            font-size: 4rem;
+            font-weight: 700;
+        }
+        .date-display {
+            font-size: 1.5rem;
+            font-weight: 400;
+        }
+        iframe {
+            border: none;
+            border-radius: 1.5rem;
+        }
+        .link-button {
+            transition: transform 0.2s ease-in-out;
+        }
+        .link-button:hover {
+            transform: scale(1.05);
+        }
+        .news-item {
+            border-bottom: 1px solid #4a5568;
+        }
+        .hourly-forecast-container {
+            display: flex;
+            justify-content: space-between;
+            overflow-x: hidden;
+            gap: 0.25rem;
+            padding-bottom: 0.5rem;
+        }
+        .hourly-forecast-item {
+            flex-shrink: 0;
+            flex-basis: 7%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="p-6">
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Column for Clock and Weather -->
+        <div class="flex flex-col gap-6">
+            <!-- Clock and Date Widget -->
+            <div class="widget-container p-8 flex flex-col items-center justify-center text-center">
+                <div id="clock" class="clock-display"></div>
+                <div id="date" class="date-display mt-2"></div>
+            </div>
+
+            <!-- Detailed Weather Widget -->
+            <div class="widget-container p-8 flex flex-col justify-center">
+                <h2 class="text-2xl font-bold mb-4 text-white">Meteo a Postioma</h2>
+                <div id="weather-display" class="text-center">
+                    <p class="text-xl font-semibold text-gray-400">Oggi</p>
+                    <div class="text-5xl font-bold text-white mt-2 mb-2">
+                        <span id="weather-temp">--</span>°C
+                    </div>
+                    <p id="weather-desc" class="text-xl font-medium text-gray-300">--</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google Calendar Widget -->
+        <div class="widget-container p-4 overflow-hidden md:col-span-2 lg:col-span-2">
+            <h2 class="text-2xl font-bold mb-4 text-center text-white">Calendario Famiglia</h2>
+            <iframe src="https://calendar.google.com/calendar/embed?src=family13995909884810727994%40group.calendar.google.com&ctz=Europe%2FRome"
+                style="border: 0" width="100%" height="80%" frameborder="0" scrolling="no"></iframe>
+        </div>
+        
+        <!-- Hourly Forecast for Today -->
+        <div class="widget-container p-4 lg:col-span-3">
+            <div id="hourly-forecast-container" class="hourly-forecast-container">
+                <!-- Hourly forecast items will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Tomorrow's Weather Summary -->
+        <div class="widget-container p-4 lg:col-span-3">
+            <h3 class="text-xl font-bold mb-2 text-white">Previsioni per Domani</h3>
+            <div id="tomorrow-summary" class="flex flex-row space-x-4">
+                <div class="flex-1 text-center">
+                    <p class="text-sm text-gray-400">Temperatura Massima</p>
+                    <div class="text-3xl font-bold text-white mt-2">
+                        <span id="tomorrow-max-temp">--</span>°C
+                    </div>
+                </div>
+                <div class="flex-1 text-center">
+                    <p class="text-sm text-gray-400">Temperatura Minima</p>
+                    <div class="text-3xl font-bold text-white mt-2">
+                        <span id="tomorrow-min-temp">--</span>°C
+                    </div>
+                </div>
+                <div class="flex-1 text-center">
+                    <p class="text-sm text-gray-400">Condizioni</p>
+                    <div class="text-xl font-medium text-gray-300 mt-2">
+                        <span id="tomorrow-desc">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shopping List Widget -->
+        <div class="widget-container p-4 lg:col-span-3">
+            <h2 class="text-2xl font-bold mb-4 text-white">Lista della Spesa</h2>
+            <div class="flex flex-col md:flex-row md:items-center gap-2 mb-4">
+                <input type="text" id="shopping-item-input" class="flex-1 p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400" placeholder="Aggiungi un nuovo elemento...">
+                <button id="add-item-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Aggiungi</button>
+            </div>
+            <ul id="shopping-list" class="space-y-2">
+                <!-- Shopping list items will be loaded here dynamically -->
+            </ul>
+            <!-- User ID display for sharing -->
+            <div class="mt-4 text-xs text-gray-400">
+                <span>Il tuo ID Utente:</span>
+                <span id="user-id-display" class="font-mono text-gray-300 ml-2"></span>
+            </div>
+        </div>
+        
+        <!-- News Widget -->
+        <div class="widget-container p-4 overflow-y-auto lg:col-span-3">
+            <h2 class="text-2xl font-bold mb-4 text-white">Ultime Notizie</h2>
+            <div id="news-container" class="space-y-2 text-sm">
+                <!-- News articles will be loaded here dynamically -->
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment for Firestore
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let db, auth;
+        let userId;
+
+        // Initialize Firebase and handle authentication
+        const initializeFirebase = async () => {
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.error("Firebase config is missing.");
+                return;
+            }
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase auth failed: ", error);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('user-id-display').textContent = userId;
+                    console.log("Authenticated with user ID:", userId);
+                    setupShoppingList();
+                } else {
+                    console.log("No user signed in.");
+                }
+            });
+        };
+
+        // Function to update the clock and date
+        function updateClock() {
+            const now = new Date();
+            const clock = document.getElementById('clock');
+            const date = document.getElementById('date');
+            const timeOptions = { hour: '2-digit', minute: '2-digit' };
+            clock.textContent = now.toLocaleTimeString('it-IT', timeOptions);
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            date.textContent = now.toLocaleDateString('it-IT', dateOptions);
+        }
+
+        // Function to convert weather code to readable description
+        function getWeatherDescription(code) {
+            switch(code) {
+                case 0: return 'Sereno';
+                case 1: case 2: case 3: return 'Principalmente sereno';
+                case 45: case 48: return 'Nebbia';
+                case 51: case 53: case 55: return 'Pioggerella';
+                case 56: case 57: return 'Pioggerella gelida';
+                case 61: case 63: case 65: return 'Pioggia';
+                case 66: case 67: return 'Pioggia gelida';
+                case 71: case 73: case 75: return 'Nevicata';
+                case 77: return 'Grandinata';
+                case 80: case 81: case 82: return 'Rovesci di pioggia';
+                case 85: case 86: return 'Rovesci di neve';
+                case 95: return 'Temporale';
+                case 96: case 99: return 'Temporale con grandine';
+                default: return 'Non disponibile';
+            }
+        }
+
+        // Function to fetch weather data
+        async function fetchWeather() {
+            const lat = 45.74;
+            const lon = 12.21;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&forecast_days=2&timezone=Europe%2FRome`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Errore nel caricamento dei dati meteo');
+                const data = await response.json();
+                
+                document.getElementById('weather-temp').textContent = Math.round(data.current.temperature_2m);
+                document.getElementById('weather-desc').textContent = getWeatherDescription(data.current.weather_code);
+                
+                const hourlyContainer = document.getElementById('hourly-forecast-container');
+                hourlyContainer.innerHTML = '';
+                
+                const now = new Date();
+                const nowHour = now.getHours();
+
+                for (let i = nowHour; i < data.hourly.time.length && i < nowHour + 12; i++) {
+                    const hourTime = new Date(data.hourly.time[i]);
+                    const hour = hourTime.getHours();
+                    const temp = Math.round(data.hourly.temperature_2m[i]);
+                    const desc = getWeatherDescription(data.hourly.weather_code[i]);
+                    
+                    const hourItem = document.createElement('div');
+                    hourItem.className = 'hourly-forecast-item';
+                    hourItem.innerHTML = `
+                        <p class="text-sm font-semibold">${hour}:00</p>
+                        <p class="text-xl font-bold mt-1">${temp}°C</p>
+                        <p class="text-xs mt-1 text-gray-400">${desc}</p>
+                    `;
+                    hourlyContainer.appendChild(hourItem);
+                }
+
+                const tomorrowData = data.daily;
+                const tomorrowMaxTemp = Math.round(tomorrowData.temperature_2m_max[1]);
+                const tomorrowMinTemp = Math.round(tomorrowData.temperature_2m_min[1]);
+                const tomorrowDesc = getWeatherDescription(tomorrowData.weather_code[1]);
+                
+                document.getElementById('tomorrow-max-temp').textContent = tomorrowMaxTemp;
+                document.getElementById('tomorrow-min-temp').textContent = tomorrowMinTemp;
+                document.getElementById('tomorrow-desc').textContent = tomorrowDesc;
+
+            } catch (error) {
+                console.error("Errore nel recupero del meteo:", error);
+                document.getElementById('weather-display').innerHTML = `<p class="text-red-400">Impossibile caricare il meteo.</p>`;
+                document.getElementById('hourly-forecast-container').innerHTML = `<p class="text-red-400">Impossibile caricare le previsioni orarie.</p>`;
+                document.getElementById('tomorrow-summary').innerHTML = `<p class="text-red-400">Impossibile caricare le previsioni per domani.</p>`;
+            }
+        }
+
+        // Function to fetch news from an RSS feed
+        async function fetchNews() {
+            const rssFeedUrl = 'https://www.ansa.it/sito/ansait_rss.xml';
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssFeedUrl)}`;
+
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error('Errore nella risposta della rete');
+                }
+                const data = await response.json();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+                const items = xmlDoc.querySelectorAll("item");
+                const newsContainer = document.getElementById('news-container');
+                
+                newsContainer.innerHTML = '';
+
+                items.forEach(item => {
+                    const title = item.querySelector("title").textContent;
+                    const link = item.querySelector("link").textContent;
+                    const pubDate = item.querySelector("pubDate").textContent;
+
+                    const article = document.createElement('div');
+                    article.className = "news-item p-2 text-sm";
+                    article.innerHTML = `
+                        <a href="${link}" target="_blank" class="font-semibold text-blue-400 hover:underline">${title}</a>
+                        <p class="text-xs text-gray-400 mt-0.5">${new Date(pubDate).toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    `;
+                    newsContainer.appendChild(article);
+                });
+
+            } catch (error) {
+                console.error("Errore nel caricamento delle notizie:", error);
+                const newsContainer = document.getElementById('news-container');
+                newsContainer.innerHTML = `<p class="text-red-400">Impossibile caricare le notizie.</p>`;
+            }
+        }
+
+        // Function for the shopping list with Firestore
+        const setupShoppingList = () => {
+            const shoppingListContainer = document.getElementById('shopping-list');
+            const shoppingItemInput = document.getElementById('shopping-item-input');
+            const addItemBtn = document.getElementById('add-item-btn');
+
+            // Path for the Firestore collection
+            const shoppingListRef = collection(db, `artifacts/${appId}/public/data/shoppingList`);
+
+            // Add a new item
+            addItemBtn.onclick = async () => {
+                const itemText = shoppingItemInput.value.trim();
+                if (itemText !== "") {
+                    try {
+                        await addDoc(shoppingListRef, {
+                            text: itemText,
+                            timestamp: Date.now()
+                        });
+                        shoppingItemInput.value = "";
+                    } catch (e) {
+                        console.error("Error adding document: ", e);
+                    }
+                }
+            };
+            
+            // Handle Enter key to add item
+            shoppingItemInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    addItemBtn.click();
+                }
+            });
+
+            // Real-time synchronization of the list
+            onSnapshot(shoppingListRef, (snapshot) => {
+                shoppingListContainer.innerHTML = '';
+                snapshot.docs.forEach((doc) => {
+                    const item = doc.data();
+                    const listItem = document.createElement('li');
+                    listItem.className = "flex items-center justify-between p-2 rounded-lg bg-gray-700";
+                    listItem.innerHTML = `
+                        <span>${item.text}</span>
+                        <button class="delete-btn text-red-400 hover:text-red-500 font-bold ml-4" data-id="${doc.id}">X</button>
+                    `;
+                    shoppingListContainer.appendChild(listItem);
+                });
+
+                // Add listener for the delete button
+                shoppingListContainer.querySelectorAll('.delete-btn').forEach(button => {
+                    button.addEventListener('click', async (event) => {
+                        const docId = event.target.dataset.id;
+                        if (docId) {
+                            try {
+                                await deleteDoc(doc(db, `artifacts/${appId}/public/data/shoppingList/${docId}`));
+                            } catch (e) {
+                                console.error("Error deleting document: ", e);
+                            }
+                        }
+                    });
+                });
+            });
+        };
+
+        // Update clock every second
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Initialize everything on page load
+        window.onload = () => {
+            initializeFirebase();
+            fetchWeather();
+            fetchNews();
+        };
+
+        // Update weather and news every 30 minutes
+        setInterval(fetchWeather, 1800000); // 30 minutes
+        setInterval(fetchNews, 1800000); // 30 minutes
+
+    </script>
+</body>
+</html>
